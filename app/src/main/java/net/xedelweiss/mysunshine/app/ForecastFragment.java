@@ -1,8 +1,11 @@
 package net.xedelweiss.mysunshine.app;
 
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.preference.PreferenceManager;
 import android.support.v4.app.Fragment;
 import android.text.format.Time;
 import android.util.Log;
@@ -12,8 +15,10 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -27,7 +32,6 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -51,17 +55,7 @@ public class ForecastFragment extends Fragment {
                              Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_main, container, false);
 
-        String[] data = {
-                "Mon 6/23 - Sunny - 31/17",
-                "Tue 6/24 - Foggy - 21/8",
-                "Wed 6/25 - Cloudy - 22/17",
-                "Thurs 6/26 - Rainy - 18/11",
-                "Fri 6/27 - Foggy - 21/10",
-                "Sat 6/28 - TRAPPED IN WEATHERSTATION - 23/18",
-                "Sun 6/29 - Sunny - 20/7"
-        };
-
-        List<String> weekForecast = new ArrayList<String>(Arrays.asList(data));
+        List<String> weekForecast = new ArrayList<String>();
 
         mForecastAdapter = new ArrayAdapter<String>(
                 this.getActivity(),
@@ -73,7 +67,24 @@ public class ForecastFragment extends Fragment {
         ListView listView = (ListView) rootView.findViewById(R.id.listview_forecast);
         listView.setAdapter(mForecastAdapter);
 
+        listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                String forecast = mForecastAdapter.getItem(position);
+
+                Intent detailsIntent = new Intent(getContext(), DetailActivity.class);
+                detailsIntent.putExtra(Intent.EXTRA_TEXT, forecast);
+                startActivity(detailsIntent);
+            }
+        });
+
         return rootView;
+    }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        updateWeather(false);
     }
 
     @Override
@@ -86,13 +97,24 @@ public class ForecastFragment extends Fragment {
         int id = item.getItemId();
 
         if (id == R.id.action_refresh) {
-            FetchWeatherTask weatherTask = new FetchWeatherTask();
-            String postCode = "94043";
-            weatherTask.execute(postCode);
+            updateWeather(true);
             return true;
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    private void updateWeather(boolean showNotification) {
+        SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getActivity());
+        String locationQuery = preferences.getString(getString(R.string.pref_location_key), getString(R.string.pref_location_default));
+
+        if (showNotification) {
+            final String loadingMessage = String.format(getString(R.string.loading_notification_text), locationQuery);
+            Toast.makeText(getActivity(), loadingMessage, Toast.LENGTH_SHORT).show();
+        }
+
+        FetchWeatherTask weatherTask = new FetchWeatherTask();
+        weatherTask.execute(locationQuery);
     }
 
     public class FetchWeatherTask extends AsyncTask<String, Void, String[]> {
@@ -109,8 +131,10 @@ public class ForecastFragment extends Fragment {
             // Will contain the raw JSON response as a string.
             String forecastJsonStr = null;
 
+            SharedPreferences preferences = PreferenceManager.getDefaultSharedPreferences(getActivity());
+            String units = preferences.getString(getString(R.string.pref_units_key), getString(R.string.pref_units_default));
+
             String format = "json";
-            String units = "metric";
             int numDays = 7;
 
             try {
@@ -179,7 +203,7 @@ public class ForecastFragment extends Fragment {
             }
 
             try {
-                return getWeatherDataFromJson(forecastJsonStr, numDays);
+                return getWeatherDataFromJson(forecastJsonStr, numDays, units);
             } catch (JSONException e) {
                 Log.e(LOG_TAG, "Error parsing response JSON", e);
             }
@@ -188,8 +212,8 @@ public class ForecastFragment extends Fragment {
         }
 
         /* The date/time conversion code is going to be moved outside the asynctask later,
-         * so for convenience we're breaking it out into its own method now.
-         */
+                 * so for convenience we're breaking it out into its own method now.
+                 */
         private String getReadableDateString(long time){
             // Because the API returns a unix timestamp (measured in seconds),
             // it must be converted to milliseconds in order to be converted to valid date.
@@ -216,7 +240,7 @@ public class ForecastFragment extends Fragment {
          * Fortunately parsing is easy:  constructor takes the JSON string and converts it
          * into an Object hierarchy for us.
          */
-        private String[] getWeatherDataFromJson(String forecastJsonStr, int numDays)
+        private String[] getWeatherDataFromJson(String forecastJsonStr, int numDays, String units)
                 throws JSONException {
 
             // These are the names of the JSON objects that need to be extracted.
@@ -276,7 +300,9 @@ public class ForecastFragment extends Fragment {
                 double low = temperatureObject.getDouble(OWM_MIN);
 
                 highAndLow = formatHighLows(high, low);
-                resultStrs[i] = day + " - " + description + " - " + highAndLow;
+                String readableUnits = units.equals("metric") ? "C" : "F";
+
+                resultStrs[i] = day + " - " + description + " - " + highAndLow + " " + readableUnits;
             }
             return resultStrs;
 
