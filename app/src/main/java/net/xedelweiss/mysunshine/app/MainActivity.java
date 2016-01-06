@@ -20,6 +20,36 @@ public class MainActivity extends AppCompatActivity {
     private final String LOG_TAG = MainActivity.class.getSimpleName();
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        Log.d("EVENTS", "onPause");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d("EVENTS", "onResume");
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d("EVENTS", "onStop");
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        Log.d("EVENTS", "onStart");
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.d("EVENTS", "onDestroy");
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
@@ -34,6 +64,8 @@ public class MainActivity extends AppCompatActivity {
                         .setAction("Action", null).show();
             }
         });
+
+        Log.d("EVENTS", "onCreate");
     }
 
     @Override
